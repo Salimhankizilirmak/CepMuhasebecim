@@ -28,12 +28,18 @@ export async function getUser(req) {
   return r.json();
 }
 
+/* Gizli anahtar başlıkları: eski service_role (JWT) anahtarı Authorization'a da yazılır,
+   yeni sb_secret_ anahtarı yalnızca apikey başlığında gider. */
+export function adminHeaders() {
+  const key = env('SUPABASE_SERVICE_ROLE_KEY');
+  return key.startsWith('eyJ') ? { apikey: key, Authorization: `Bearer ${key}` } : { apikey: key };
+}
+
 /* Service role ile PostgREST çağrısı (RLS'i atlar; yalnızca sunucuda kullanılır). */
 export async function db(path, { method = 'GET', body, prefer } = {}) {
-  const key = env('SUPABASE_SERVICE_ROLE_KEY');
   const r = await fetch(`${SUPABASE_URL()}/rest/v1/${path}`, {
     method,
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) },
+    headers: { ...adminHeaders(), 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   const text = await r.text();
@@ -53,11 +59,12 @@ export async function isAllowed(user) {
 
 export const istanbulDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
 
-/* Gemini generateContent çağrısı. search: Google Arama ile temellendirme. json: JSON çıktısı iste. */
-export async function gemini({ system, contents, search = false, json = false, temperature = 0.3 }) {
+/* Gemini generateContent çağrısı. search: Google Arama ile temellendirme. json: JSON çıktısı iste.
+   Bir model yoğunsa (503/429) ya da süre aşılırsa sıradaki modele geçer. */
+export async function gemini({ system, contents, search = false, json = false, temperature = 0.3, timeoutMs = 25000 }) {
   const key = env('GEMINI_API_KEY');
   if (!key) throw new Error('GEMINI_API_KEY tanımlı değil');
-  const models = [env('GEMINI_MODEL') || 'gemini-3.8-flash', 'gemini-flash-latest'];
+  const models = [env('GEMINI_MODEL'), 'gemini-3.6-flash', 'gemini-3.5-flash'].filter(Boolean);
   const body = {
     ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
     contents,
@@ -66,18 +73,30 @@ export async function gemini({ system, contents, search = false, json = false, t
   };
   let last;
   for (const model of [...new Set(models)]) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body)
-    });
-    const j = await r.json().catch(() => ({}));
+    let r, j;
+    try {
+      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+      j = await r.json().catch(() => ({}));
+    } catch (e) {
+      last = new Error(`Gemini ${model} ${Math.round(timeoutMs / 1000)} sn içinde cevap vermedi`);
+      console.warn(last.message);
+      continue;
+    }
     if (r.ok) {
       const cand = j.candidates?.[0];
       const text = (cand?.content?.parts || []).map(p => p.text || '').join('');
       const sources = (cand?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean).map(w => ({ t: w.title || w.uri, u: w.uri }));
-      return { text, sources, model };
+      if (text.trim()) return { text, sources, model };
+      last = new Error(`Gemini ${model} boş cevap döndü (${cand?.finishReason || 'bilinmiyor'})`);
+      continue;
     }
-    last = new Error(`Gemini hatası (${r.status}): ${j.error?.message || 'bilinmiyor'}`);
-    if (r.status !== 404 && r.status !== 400) break;
+    last = new Error(`Gemini hatası (${model}, ${r.status}): ${j.error?.message || 'bilinmiyor'}`);
+    console.warn(last.message);
+    // Anahtar hatası ya da kota bitti: başka model denemek işe yaramaz
+    if (r.status === 401 || r.status === 403) break;
   }
   throw last;
 }

@@ -50,6 +50,13 @@ language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.yoneticiler where user_id = auth.uid());
 $$;
 
+-- Bu fonksiyonlar yalnızca çağıran kişinin kendisi hakkında evet/hayır döndürür.
+-- Giriş yapmamış ziyaretçiler çağıramaz; giriş yapanlar çağırabilmeli (güvenlik kuralları da bunları kullanır).
+revoke execute on function public.izinli() from public, anon;
+revoke execute on function public.yonetici() from public, anon;
+grant execute on function public.izinli() to authenticated;
+grant execute on function public.yonetici() to authenticated;
+
 -- Satır düzeyinde güvenlik (RLS): her kullanıcı yalnızca kendi satırlarını görür
 alter table public.kayitlar enable row level security;
 alter table public.oranlar enable row level security;

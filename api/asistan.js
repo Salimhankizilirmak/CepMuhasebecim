@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   else msgs.unshift({ role: 'user', parts: [{ text: `VERİLER:\n${context}` }] });
 
   try {
-    const { text } = await gemini({ system: SYSTEM, contents: msgs, json: true, temperature: 0.4 });
+    const { text } = await gemini({ system: SYSTEM, contents: msgs, json: true, temperature: 0.4, timeoutMs: 20000 });
     const j = extractJson(text) || { cevap: text };
     send(res, 200, { cevap: String(j.cevap || ''), eylemler: Array.isArray(j.eylemler) ? j.eylemler.slice(0, 5) : [] });
   } catch (e) {

@@ -89,11 +89,14 @@ Emin olamadığın bir değeri null yaz, tahmin etme. Yanıtın SADECE şu JSON 
 
   let found = null, sources = [], model = '';
   try {
-    const r = await gemini({ contents: [{ role: 'user', parts: [{ text: prompt }] }], search: true, temperature: 0 });
+    const r = await gemini({ contents: [{ role: 'user', parts: [{ text: prompt }] }], search: true, temperature: 0, timeoutMs: 18000 });
     found = extractJson(r.text); sources = r.sources; model = r.model;
   } catch (e) {
     console.error(e);
-    return send(res, 502, { hata: 'Gemini ile oranlar alınamadı: ' + e.message });
+    const quota = /429|quota/i.test(e.message);
+    return send(res, 502, { hata: quota
+      ? 'Gemini anahtarının ücretsiz planı Google Arama özelliğini kapsamıyor. Google AI Studio\'da faturalandırmayı açınca otomatik güncelleme çalışır. Oranlar değiştirilmedi.'
+      : 'Gemini ile oranlar alınamadı: ' + e.message + '. Oranlar değiştirilmedi.' });
   }
   if (!found) return send(res, 502, { hata: 'Gemini geçerli bir cevap vermedi; oranlar değiştirilmedi.' });
 
