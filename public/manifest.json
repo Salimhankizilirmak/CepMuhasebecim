@@ -1,0 +1,21 @@
+{
+  "name": "Cep Muhasebecim",
+  "short_name": "Muhasebecim",
+  "description": "Kart limitlerini, taksitlerini, kredilerini ve düğün planını takip eden cep muhasebecin.",
+  "lang": "tr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EDF1EF",
+  "theme_color": "#0B6E5F",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Kartlarım", "url": "/#kartlar" },
+    { "name": "Düğün planı", "url": "/#dugun" }
+  ]
+}

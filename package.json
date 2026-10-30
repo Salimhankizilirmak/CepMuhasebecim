@@ -1,0 +1,11 @@
+{
+  "name": "cep-muhasebecim",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Kart limiti, taksit, kredi ve düğün planı takibi yapan kişisel finans uygulaması",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node test/engine.test.js"
+  }
+}
